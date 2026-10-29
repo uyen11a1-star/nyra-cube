@@ -32,9 +32,9 @@ h1 { margin: 0; font-size: 30px; line-height: 1.05; font-weight: 700; letter-spa
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:focus-visible, .seg-b:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-.mode { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; font-size: 14px; color: var(--muted); }
-.seg { display: inline-flex; border: 1.5px solid var(--line); border-radius: 12px; padding: 3px; background: var(--surface); }
-.seg-b { font: 600 14px/1 var(--font); border: 0; background: none; color: var(--muted); padding: 10px 14px; border-radius: 9px; cursor: pointer; }
+.mode { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; font-size: 14px; color: var(--muted); }
+.seg { display: flex; width: 100%; border: 1.5px solid var(--line); border-radius: 12px; padding: 3px; background: var(--surface); }
+.seg-b { flex: 1; font: 600 14px/1 var(--font); border: 0; background: none; color: var(--muted); padding: 12px 4px; border-radius: 9px; cursor: pointer; }
 .seg-b.on { background: var(--ink); color: var(--bg); }
 
 .msg { margin: 14px 0 0; padding: 12px 14px; border-radius: 12px; background: rgba(192,57,43,.12); color: #B03A2E; font-size: 14px; font-weight: 500; }

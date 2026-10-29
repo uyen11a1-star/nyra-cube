@@ -136,7 +136,7 @@ function resetCube() {
 }
 
 // ---------- Điều khiển ----------
-let ready = false, busy = false, solving = false, cancel = false, moveMs = 380;
+let ready = false, busy = false, solving = false, cancel = false, moveMs = 380, thinkMs = 400;
 function showMsg(t, info) { msgEl.hidden = !t; msgEl.textContent = t || ''; msgEl.classList.toggle('info', !!info); }
 function setBusy(b, isSolving) {
   busy = b; solving = !!isSolving;
@@ -165,11 +165,11 @@ btnSolve.onclick = () => {
   const fl = read3d();
   if (fl === SOLVED) { showMsg('Khối đang nguyên rồi. Bấm “Xáo ngẫu nhiên” để thử.', true); return; }
   setBusy(true, true); progEl.textContent = 'AI đang tính…';
-  worker.postMessage({ type: 'solve', facelets: fl, maxLen: 30, ms: 400 });
+  worker.postMessage({ type: 'solve', facelets: fl, maxLen: 30, ms: thinkMs });
 };
 document.querySelectorAll('.seg-b').forEach(b => b.addEventListener('click', () => {
   document.querySelectorAll('.seg-b').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
-  b.classList.add('on'); b.setAttribute('aria-checked', 'true'); moveMs = +b.dataset.ms;
+  b.classList.add('on'); b.setAttribute('aria-checked', 'true'); moveMs = +b.dataset.ms; thinkMs = +b.dataset.think;
 }));
 
 async function playSolution(moves) {

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=2">
+<link rel="stylesheet" href="style.css?v=3">
 </head>
 <body>
 <div class="page">
@@ -36,9 +36,10 @@
   <section class="mode" aria-label="Tốc độ xoay">
     <span class="mode-label">Tốc độ xoay</span>
     <div class="seg" role="radiogroup">
-      <button class="seg-b" role="radio" aria-checked="false" data-ms="700">Chậm</button>
-      <button class="seg-b on" role="radio" aria-checked="true" data-ms="380">Vừa</button>
-      <button class="seg-b" role="radio" aria-checked="false" data-ms="160">Nhanh</button>
+      <button class="seg-b" role="radio" aria-checked="false" data-ms="700" data-think="400">Chậm</button>
+      <button class="seg-b on" role="radio" aria-checked="true" data-ms="380" data-think="400">Vừa</button>
+      <button class="seg-b" role="radio" aria-checked="false" data-ms="160" data-think="250">Nhanh</button>
+      <button class="seg-b" role="radio" aria-checked="false" data-ms="40" data-think="100">Siêu tốc</button>
     </div>
   </section>
 
@@ -46,6 +47,6 @@
 
   <footer class="foot">Nyra Cube · engine C++ chạy bằng WebAssembly, thuật toán hai pha</footer>
 </div>
-<script type="module" src="app.js?v=2"></script>
+<script type="module" src="app.js?v=3"></script>
 </body>
 </html>

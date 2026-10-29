@@ -1,0 +1,14 @@
+NYRA CUBE — cách build & test
+
+1) Test engine native (cần g++ và python3):
+   g++ -O2 -shared -fPIC -o libnyracube.so engine/nyra_cube.cpp
+   python3 tools/test_cube.py ./libnyracube.so 200
+   (so engine với mô phỏng vật lý 3D độc lập: apply, giải, thế không hợp lệ)
+
+2) Build WebAssembly bằng wasi-sdk 25 (https://github.com/WebAssembly/wasi-sdk/releases):
+   $WASI/bin/clang++ -O2 -std=c++17 -fno-exceptions -fno-rtti -mexec-model=reactor \
+     -Wl,--no-entry -Wl,--strip-all -o nyra-cube.wasm engine/nyra_cube.cpp
+
+3) Chạy web: phải qua http(s), ví dụ  python3 -m http.server 8000  rồi mở localhost:8000
+   File web ở thư mục gốc: index.html, app.js, style.css, cube-worker.js, nyra-cube.js, nyra-cube.wasm
+   Khi sửa file nào thì nâng số ?v= trong index.html / cube-worker.js.

@@ -36,7 +36,7 @@ jobs:
       - name: Collect site files
         run: |
           mkdir _site
-          cp index.html app.js style.css cube-worker.js nyra-cube.js nyra-cube.wasm _site/
+          cp index.html app.js style.css cube-worker.js nyra-cube.js nyra-cube.wasm three.module.min.js _site/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

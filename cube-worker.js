@@ -12,7 +12,7 @@ onmessage = async (ev) => {
     const t = performance.now();
     const r = eng.solve(d.facelets, d.maxLen || 30, d.ms || 300);
     r.ms = performance.now() - t; r.id = d.id; r.type = 'solved';
-    if (r.ok) {
+    if (r.ok && d.states) {
       // trạng thái sau từng nước để giao diện tua
       r.states = [d.facelets];
       let cur = d.facelets;

@@ -4,67 +4,48 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#E9EDF0">
-<title>Nyra Cube — giải Rubik 3×3</title>
+<title>Nyra Cube — AI giải Rubik 3D</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2311151A'/%3E%3Cg%3E%3Crect x='5' y='5' width='6' height='6' rx='1.5' fill='%23F4F4EF'/%3E%3Crect x='13' y='5' width='6' height='6' rx='1.5' fill='%23D8342B'/%3E%3Crect x='21' y='5' width='6' height='6' rx='1.5' fill='%231E9B58'/%3E%3Crect x='5' y='13' width='6' height='6' rx='1.5' fill='%232A5BD7'/%3E%3Crect x='13' y='13' width='6' height='6' rx='1.5' fill='%23F1C40F'/%3E%3Crect x='21' y='13' width='6' height='6' rx='1.5' fill='%23F28C1B'/%3E%3Crect x='5' y='21' width='6' height='6' rx='1.5' fill='%23D8342B'/%3E%3Crect x='13' y='21' width='6' height='6' rx='1.5' fill='%23F4F4EF'/%3E%3Crect x='21' y='21' width='6' height='6' rx='1.5' fill='%232A5BD7'/%3E%3C/g%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <div class="page">
   <header class="top">
     <div>
       <h1>Nyra Cube</h1>
-      <p class="tag">Giải khối Rubik 3×3 ngay trên máy</p>
+      <p class="tag">AI tự xoay khối Rubik 3×3 về nguyên</p>
     </div>
     <div id="status" class="status" role="status" aria-live="polite">Đang nạp engine…</div>
   </header>
 
-  <section class="mat" aria-label="Khối Rubik dạng trải phẳng">
-    <div id="net" class="net"></div>
-    <p class="hint">Cầm khối với mặt trắng ở trên, mặt xanh lá hướng về phía mày. Chọn màu bên dưới rồi chạm vào ô để tô. Ô giữa mỗi mặt cố định.</p>
+  <section class="stage" aria-label="Khối Rubik 3D">
+    <canvas id="cv" aria-label="Khối Rubik 3D, kéo để xoay góc nhìn"></canvas>
+    <div id="prog" class="prog" role="status" aria-live="polite"></div>
   </section>
-
-  <section class="palette" aria-label="Bảng màu" id="palette"></section>
+  <p class="hint">Kéo trên khối để xoay góc nhìn.</p>
 
   <section class="actions">
-    <button id="btnRandom" class="btn" disabled>Xáo ngẫu nhiên</button>
+    <button id="btnScramble" class="btn" disabled>Xáo ngẫu nhiên</button>
     <button id="btnReset" class="btn" disabled>Về nguyên</button>
     <button id="btnSolve" class="btn primary" disabled>Giải</button>
   </section>
 
-  <section class="mode" aria-label="Chế độ tìm lời giải">
-    <span class="mode-label">Tìm lời giải</span>
+  <section class="mode" aria-label="Tốc độ xoay">
+    <span class="mode-label">Tốc độ xoay</span>
     <div class="seg" role="radiogroup">
-      <button class="seg-b on" role="radio" aria-checked="true" data-ms="60">Nhanh</button>
-      <button class="seg-b" role="radio" aria-checked="false" data-ms="1500">Ngắn hơn</button>
+      <button class="seg-b" role="radio" aria-checked="false" data-ms="700">Chậm</button>
+      <button class="seg-b on" role="radio" aria-checked="true" data-ms="380">Vừa</button>
+      <button class="seg-b" role="radio" aria-checked="false" data-ms="160">Nhanh</button>
     </div>
   </section>
 
   <p id="msg" class="msg" role="alert" hidden></p>
 
-  <section id="result" class="result" hidden>
-    <div class="result-head">
-      <div>
-        <div class="count" id="count"></div>
-        <div class="sub" id="sub"></div>
-      </div>
-      <div class="next" id="next" aria-live="polite"></div>
-    </div>
-    <div class="controls" role="group" aria-label="Điều khiển lời giải">
-      <button class="ctl" id="cFirst" aria-label="Về đầu"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5l-9 7 9 7z"/></svg></button>
-      <button class="ctl" id="cPrev" aria-label="Lùi một nước"><svg viewBox="0 0 24 24"><path d="M17 5l-9 7 9 7z"/></svg></button>
-      <button class="ctl play" id="cPlay" aria-label="Chạy tự động"><svg viewBox="0 0 24 24" id="iPlay"><path d="M8 5l11 7-11 7z"/></svg></button>
-      <button class="ctl" id="cNext" aria-label="Tiến một nước"><svg viewBox="0 0 24 24"><path d="M7 5l9 7-9 7z"/></svg></button>
-      <button class="ctl" id="cLast" aria-label="Đến cuối"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l9 7-9 7z"/></svg></button>
-    </div>
-    <ol id="chips" class="chips" aria-label="Các nước đi"></ol>
-    <button id="btnCopy" class="link">Chép lời giải</button>
-  </section>
-
   <footer class="foot">Nyra Cube · engine C++ chạy bằng WebAssembly, thuật toán hai pha</footer>
 </div>
-<script src="app.js?v=1"></script>
+<script type="module" src="app.js?v=2"></script>
 </body>
 </html>

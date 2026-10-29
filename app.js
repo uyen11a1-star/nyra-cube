@@ -1,212 +1,209 @@
-(function () {
-  'use strict';
-  const ORDER = ['U', 'R', 'F', 'D', 'L', 'B'];
-  const NAME = { U: 'Trắng', R: 'Đỏ', F: 'Xanh lá', D: 'Vàng', L: 'Cam', B: 'Xanh dương' };
-  const FACE_VN = { U: 'trên', R: 'phải', F: 'trước', D: 'dưới', L: 'trái', B: 'sau' };
-  const SOLVED = ORDER.map(f => f.repeat(9)).join('');
-  const ERR = {
-    '-1': 'Mỗi màu phải có đúng 9 ô. Xem số đếm dưới bảng màu.',
-    '-2': 'Có cạnh không tồn tại trên khối thật (ví dụ cạnh có hai ô cùng màu, hoặc hai màu đối diện). Kiểm tra lại các ô cạnh.',
-    '-3': 'Có một cạnh bị lật lẻ nên khối này không giải được. Kiểm tra lại màu các ô cạnh.',
-    '-4': 'Có góc không tồn tại trên khối thật. Kiểm tra lại các ô góc.',
-    '-5': 'Có một góc bị xoay lệch nên khối này không giải được. Kiểm tra lại màu các ô góc.',
-    '-6': 'Hai cạnh hoặc hai góc bị đổi chỗ lẻ nên khối này không giải được. Kiểm tra lại các ô cạnh và góc.',
-    '-8': 'Không tìm được lời giải trong giới hạn nước đi.',
-    '-9': 'Tìm quá lâu, đã dừng. Thử lại hoặc chọn chế độ Nhanh.'
-  };
+import * as THREE from './three.module.min.js';
 
-  const $ = (id) => document.getElementById(id);
-  const net = $('net'), paletteEl = $('palette'), statusEl = $('status'), msgEl = $('msg');
-  const btnSolve = $('btnSolve'), btnRandom = $('btnRandom'), btnReset = $('btnReset');
+const SOLVED = 'UUUUUUUUURRRRRRRRRFFFFFFFFFDDDDDDDDDLLLLLLLLLBBBBBBBBB';
+const COLOR = { U: 0xF4F4EF, R: 0xD8342B, F: 0x1E9B58, D: 0xF1C40F, L: 0xF28C1B, B: 0x2A5BD7 };
+const NORMAL = { U: [0, 1, 0], R: [1, 0, 0], F: [0, 0, 1], D: [0, -1, 0], L: [-1, 0, 0], B: [0, 0, -1] };
+const FACE_DEF = { U: { axis: 'y', sign: 1 }, D: { axis: 'y', sign: -1 }, R: { axis: 'x', sign: 1 }, L: { axis: 'x', sign: -1 }, F: { axis: 'z', sign: 1 }, B: { axis: 'z', sign: -1 } };
 
-  let cube = SOLVED.split('');         // trạng thái đang chỉnh sửa
-  let paint = 'R';                     // màu đang chọn
-  let ready = false, busy = false;
-  let sol = null;                      // { moves, states, idx }
-  let playTimer = null;
-  let thinkMs = 60;
+const $ = (id) => document.getElementById(id);
+const cv = $('cv'), statusEl = $('status'), msgEl = $('msg'), progEl = $('prog');
+const btnSolve = $('btnSolve'), btnScramble = $('btnScramble'), btnReset = $('btnReset');
 
-  // ---------- Dựng giao diện ----------
-  const stickers = [];
-  ORDER.forEach((f, fi) => {
-    const face = document.createElement('div');
-    face.className = 'face'; face.dataset.f = f;
-    for (let k = 0; k < 9; k++) {
-      const b = document.createElement('button');
-      b.className = 'st' + (k === 4 ? ' center' : '');
-      b.type = 'button';
-      const idx = fi * 9 + k;
-      b.dataset.i = idx;
-      b.setAttribute('aria-label', 'Mặt ' + FACE_VN[f] + ', ô ' + (k + 1));
-      if (k === 4) { b.textContent = f; b.tabIndex = -1; }
-      b.addEventListener('click', () => onSticker(idx));
-      face.appendChild(b); stickers.push(b);
-    }
-    net.appendChild(face);
+// ---------- Cảnh 3D ----------
+const renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+camera.position.set(0, 0, 12.4);
+scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+const key = new THREE.DirectionalLight(0xffffff, 1.9); key.position.set(3, 6, 5); scene.add(key);
+const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(-5, -2, -3); scene.add(fill);
+
+const view = new THREE.Group(); view.position.y = 0.3; scene.add(view);
+const cubeGroup = new THREE.Group(); view.add(cubeGroup);
+let yaw = -0.62, pitch = 0.5;
+view.rotation.set(pitch, yaw, 0);
+
+function roundedRect(w, r) {
+  const s = new THREE.Shape(), x = -w / 2, y = -w / 2;
+  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0);
+  s.lineTo(x + w, y + w - r); s.absarc(x + w - r, y + w - r, r, 0, Math.PI / 2);
+  s.lineTo(x + r, y + w); s.absarc(x + r, y + w - r, r, Math.PI / 2, Math.PI);
+  s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5);
+  return new THREE.ShapeGeometry(s, 6);
+}
+const bodyGeo = new THREE.BoxGeometry(0.97, 0.97, 0.97);
+const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0c0f13, roughness: 0.65, metalness: 0 });
+const stGeo = roundedRect(0.82, 0.14);
+const stMat = {}; for (const f in COLOR) stMat[f] = new THREE.MeshStandardMaterial({ color: COLOR[f], roughness: 0.4, metalness: 0 });
+
+const cubies = [];
+for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) {
+  const c = new THREE.Mesh(bodyGeo, bodyMat);
+  c.position.set(x, y, z);
+  c.userData.home = [x, y, z];
+  c.userData.stickers = [];
+  for (const f in NORMAL) {
+    const n = NORMAL[f];
+    if (n[0] * x + n[1] * y + n[2] * z !== 1) continue;  // chỉ mặt nằm ngoài khối
+    const s = new THREE.Mesh(stGeo, stMat[f]);
+    const nv = new THREE.Vector3(n[0], n[1], n[2]);
+    s.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nv);
+    s.position.copy(nv).multiplyScalar(0.486);
+    s.userData.n = nv; s.userData.letter = f;
+    c.add(s); c.userData.stickers.push(s);
+  }
+  cubeGroup.add(c); cubies.push(c);
+}
+
+let dirty = true;
+function resize() {
+  const r = cv.parentElement.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); dirty = true;
+}
+new ResizeObserver(resize).observe(cv.parentElement); resize();
+(function loop() { if (dirty) { renderer.render(scene, camera); dirty = false; } requestAnimationFrame(loop); })();
+
+// kéo để xoay góc nhìn
+let drag = null;
+cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  yaw += (e.clientX - drag.x) * 0.011; pitch += (e.clientY - drag.y) * 0.011;
+  pitch = Math.max(-1.45, Math.min(1.45, pitch));
+  drag.x = e.clientX; drag.y = e.clientY;
+  view.rotation.set(pitch, yaw, 0); dirty = true;
+});
+const endDrag = () => { drag = null; };
+cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+
+// ---------- Xoay lớp ----------
+function snap(c) {
+  c.position.set(Math.round(c.position.x), Math.round(c.position.y), Math.round(c.position.z));
+  const m = new THREE.Matrix4().makeRotationFromQuaternion(c.quaternion), e = m.elements;
+  for (let i = 0; i < 16; i++) e[i] = Math.abs(e[i]) < 1e-3 ? 0 : Math.round(e[i]);
+  c.quaternion.setFromRotationMatrix(m); c.updateMatrix();
+}
+function turnMove(m, dur) {
+  return new Promise((resolve) => {
+    const f = m[0], q = m[1] === '2' ? 2 : m[1] === "'" ? -1 : 1, d = FACE_DEF[f];
+    const layer = cubies.filter(c => Math.round(c.position[d.axis]) === d.sign);
+    const pivot = new THREE.Group(); cubeGroup.add(pivot);
+    layer.forEach(c => pivot.attach(c));
+    const target = -d.sign * q * Math.PI / 2, t0 = performance.now(), total = dur * (q === 2 ? 1.5 : 1);
+    (function step(now) {
+      const t = Math.min(1, (now - t0) / total), e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      pivot.rotation[d.axis] = target * e; dirty = true;
+      if (t < 1) { requestAnimationFrame(step); return; }
+      pivot.rotation[d.axis] = target; pivot.updateMatrixWorld(true);
+      layer.forEach(c => { cubeGroup.attach(c); snap(c); });
+      cubeGroup.remove(pivot); dirty = true; resolve();
+    })(t0);
   });
-  const faceEls = {}; net.querySelectorAll('.face').forEach(e => faceEls[e.dataset.f] = e);
-
-  const swEls = {};
-  ORDER.forEach(f => {
-    const b = document.createElement('button');
-    b.className = 'sw'; b.type = 'button';
-    b.setAttribute('aria-label', NAME[f]);
-    b.innerHTML = '<i style="background-color:var(--c-' + f + ')"></i><span></span>';
-    b.addEventListener('click', () => { paint = f; renderPalette(); });
-    paletteEl.appendChild(b); swEls[f] = b;
-  });
-
-  function renderPalette() {
-    const cnt = {}; ORDER.forEach(f => cnt[f] = 0);
-    cube.forEach(c => cnt[c]++);
-    ORDER.forEach(f => {
-      swEls[f].setAttribute('aria-pressed', f === paint ? 'true' : 'false');
-      swEls[f].querySelector('span').textContent = cnt[f] + '/9';
-      swEls[f].classList.toggle('bad', cnt[f] !== 9);
-    });
+}
+// vị trí + hướng của ô thứ i trên mặt f (cùng quy ước với engine)
+function slot(f, i) {
+  const r = Math.floor(i / 3), c = i % 3;
+  switch (f) {
+    case 'U': return { p: [c - 1, 1, r - 1], n: [0, 1, 0] };
+    case 'R': return { p: [1, 1 - r, 1 - c], n: [1, 0, 0] };
+    case 'F': return { p: [c - 1, 1 - r, 1], n: [0, 0, 1] };
+    case 'D': return { p: [c - 1, -1, 1 - r], n: [0, -1, 0] };
+    case 'L': return { p: [-1, 1 - r, c - 1], n: [-1, 0, 0] };
+    default: return { p: [1 - c, 1 - r, -1], n: [0, 0, -1] };
   }
-
-  function view() { return sol ? sol.states[sol.idx].split('') : cube; }
-
-  function render() {
-    const v = view();
-    for (let i = 0; i < 54; i++) stickers[i].dataset.c = v[i];
-    renderPalette();
-    ORDER.forEach(f => faceEls[f].classList.remove('turn'));
-    if (sol) renderResult();
-  }
-
-  // ---------- Kết quả & tua ----------
-  function moveText(m) { return m.replace("'", '\u2019'); }
-  function moveCaption(m) {
-    const f = m[0], s = m[1];
-    const dir = s === '2' ? 'xoay 180°' : s === "'" ? 'ngược chiều kim đồng hồ' : 'thuận chiều kim đồng hồ';
-    return 'Mặt ' + FACE_VN[f] + ', ' + dir;
-  }
-  function renderResult() {
-    $('result').hidden = false;
-    const n = sol.moves.length;
-    $('count').textContent = n === 0 ? 'Khối đã giải xong' : n + ' nước';
-    $('sub').textContent = sol.info;
-    const nextEl = $('next');
-    ORDER.forEach(f => faceEls[f].classList.remove('turn'));
-    if (sol.idx < n) {
-      const m = sol.moves[sol.idx];
-      nextEl.innerHTML = '<div class="big"></div><div class="cap"></div>';
-      nextEl.querySelector('.big').textContent = moveText(m);
-      nextEl.querySelector('.cap').textContent = moveCaption(m);
-      faceEls[m[0]].classList.add('turn');
-    } else {
-      nextEl.innerHTML = '<div class="cap">Xong. Khối đã về nguyên.</div>';
+}
+// đọc trạng thái thật từ khối 3D -> chuỗi 54 ô
+function read3d() {
+  let out = '';
+  const v = new THREE.Vector3();
+  for (const f of 'URFDLB') for (let i = 0; i < 9; i++) {
+    const { p, n } = slot(f, i);
+    const c = cubies.find(cb => cb.position.x === p[0] && cb.position.y === p[1] && cb.position.z === p[2]);
+    let ch = '?';
+    for (const s of c.userData.stickers) {
+      v.copy(s.userData.n).applyQuaternion(c.quaternion);
+      if (Math.round(v.x) === n[0] && Math.round(v.y) === n[1] && Math.round(v.z) === n[2]) { ch = s.userData.letter; break; }
     }
-    const chips = $('chips'); chips.innerHTML = '';
-    sol.moves.forEach((m, i) => {
-      const li = document.createElement('li');
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'chip' + (i < sol.idx ? ' done' : '') + (i === sol.idx - 1 ? ' cur' : '');
-      b.textContent = moveText(m);
-      b.setAttribute('aria-label', 'Nước ' + (i + 1) + ': ' + moveText(m));
-      b.addEventListener('click', () => { stopPlay(); go(i + 1); });
-      li.appendChild(b); chips.appendChild(li);
-    });
-    $('cFirst').disabled = $('cPrev').disabled = sol.idx === 0;
-    $('cNext').disabled = $('cLast').disabled = sol.idx >= n;
-    $('cPlay').disabled = n === 0;
-    const cur = chips.querySelector('.cur');
-    if (cur && cur.scrollIntoView) cur.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    out += ch;
   }
-  function go(i) { if (!sol) return; sol.idx = Math.max(0, Math.min(sol.moves.length, i)); render(); }
-  function stopPlay() {
-    if (playTimer) { clearInterval(playTimer); playTimer = null; }
-    $('iPlay').innerHTML = '<path d="M8 5l11 7-11 7z"/>';
-    $('cPlay').setAttribute('aria-label', 'Chạy tự động');
+  return out;
+}
+function resetCube() {
+  cubies.forEach(c => { c.position.set(...c.userData.home); c.quaternion.identity(); c.updateMatrix(); });
+  dirty = true;
+}
+
+// ---------- Điều khiển ----------
+let ready = false, busy = false, solving = false, cancel = false, moveMs = 380;
+function showMsg(t, info) { msgEl.hidden = !t; msgEl.textContent = t || ''; msgEl.classList.toggle('info', !!info); }
+function setBusy(b, isSolving) {
+  busy = b; solving = !!isSolving;
+  btnScramble.disabled = btnReset.disabled = b || !ready;
+  btnSolve.disabled = !ready || (b && !solving);
+  btnSolve.textContent = solving ? 'Dừng' : 'Giải';
+}
+
+btnReset.onclick = () => { if (busy) return; resetCube(); progEl.textContent = ''; showMsg(''); };
+btnScramble.onclick = async () => {
+  if (busy || !ready) return;
+  showMsg(''); setBusy(true); progEl.textContent = 'Đang xáo…';
+  const F = 'URFDLB'; let last = -1; const seq = [];
+  while (seq.length < 20) {
+    const f = Math.floor(Math.random() * 6); if (f === last) continue; last = f;
+    seq.push(F[f] + ['', '2', "'"][Math.floor(Math.random() * 3)]);
   }
-  function startPlay() {
-    if (!sol) return;
-    if (sol.idx >= sol.moves.length) go(0);
-    $('iPlay').innerHTML = '<path d="M7 5v14M17 5v14"/>';
-    $('cPlay').setAttribute('aria-label', 'Tạm dừng');
-    playTimer = setInterval(() => {
-      if (!sol || sol.idx >= sol.moves.length) { stopPlay(); return; }
-      go(sol.idx + 1);
-      if (sol.idx >= sol.moves.length) stopPlay();
-    }, 800);
+  for (const m of seq) await turnMove(m, 85);
+  progEl.textContent = ''; setBusy(false);
+};
+btnSolve.onclick = () => {
+  if (!ready) return;
+  if (solving) { cancel = true; return; }
+  if (busy) return;
+  showMsg('');
+  const fl = read3d();
+  if (fl === SOLVED) { showMsg('Khối đang nguyên rồi. Bấm “Xáo ngẫu nhiên” để thử.', true); return; }
+  setBusy(true, true); progEl.textContent = 'AI đang tính…';
+  worker.postMessage({ type: 'solve', facelets: fl, maxLen: 30, ms: 400 });
+};
+document.querySelectorAll('.seg-b').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.seg-b').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+  b.classList.add('on'); b.setAttribute('aria-checked', 'true'); moveMs = +b.dataset.ms;
+}));
+
+async function playSolution(moves) {
+  cancel = false;
+  for (let i = 0; i < moves.length; i++) {
+    if (cancel) { progEl.textContent = 'Đã dừng'; setBusy(false); return; }
+    progEl.textContent = 'Bước ' + (i + 1) + '/' + moves.length;
+    await turnMove(moves[i], moveMs);
   }
-  $('cFirst').onclick = () => { stopPlay(); go(0); };
-  $('cPrev').onclick = () => { stopPlay(); go(sol.idx - 1); };
-  $('cNext').onclick = () => { stopPlay(); go(sol.idx + 1); };
-  $('cLast').onclick = () => { stopPlay(); go(sol.moves.length); };
-  $('cPlay').onclick = () => { playTimer ? stopPlay() : startPlay(); };
-  $('btnCopy').onclick = async () => {
-    const t = sol ? sol.moves.join(' ') : '';
-    try { await navigator.clipboard.writeText(t); showMsg('Đã chép: ' + t, true); } catch (e) { showMsg(t, true); }
+  progEl.textContent = 'Xong, giải trong ' + moves.length + ' nước';
+  setBusy(false);
+}
+
+// ---------- Worker (engine wasm) ----------
+let worker;
+function fatal(t) {
+  statusEl.textContent = 'Lỗi engine'; statusEl.className = 'status err';
+  showMsg('Không nạp được engine. Hãy mở trang qua http(s), không mở trực tiếp bằng file://. (' + t + ')');
+}
+try { worker = new Worker('cube-worker.js?v=2'); } catch (e) { fatal(String(e)); }
+if (worker) {
+  worker.onerror = (e) => fatal(e.message || 'worker');
+  worker.onmessage = (ev) => {
+    const d = ev.data;
+    if (d.type === 'ready') {
+      ready = true; setBusy(false);
+      statusEl.textContent = 'Engine sẵn sàng'; statusEl.className = 'status ok';
+      statusEl.title = 'Dựng bảng tra ' + Math.round(d.initMs) + ' ms';
+    } else if (d.type === 'fatal') { fatal(d.message); }
+    else if (d.type === 'solved') {
+      if (!d.ok) { setBusy(false); progEl.textContent = ''; showMsg('Không tìm được lời giải (mã ' + d.err + ').'); return; }
+      playSolution(d.moves);
+    }
   };
-
-  // ---------- Thao tác ----------
-  function showMsg(t, info) { msgEl.hidden = !t; msgEl.textContent = t || ''; msgEl.classList.toggle('info', !!info); }
-  function clearSolution() { stopPlay(); if (sol) { cube = sol.states[sol.idx].split(''); sol = null; $('result').hidden = true; } }
-  function setBusy(b) {
-    busy = b;
-    btnSolve.disabled = btnRandom.disabled = btnReset.disabled = b || !ready;
-    btnSolve.textContent = b ? 'Đang giải…' : 'Giải';
-  }
-
-  function onSticker(i) {
-    if (i % 9 === 4 || busy) return;
-    if (sol) { clearSolution(); }
-    showMsg('');
-    cube[i] = paint;
-    render();
-  }
-
-  btnReset.onclick = () => { clearSolution(); sol = null; $('result').hidden = true; cube = SOLVED.split(''); showMsg(''); render(); };
-  btnRandom.onclick = () => {
-    if (!ready || busy) return;
-    clearSolution(); showMsg('');
-    const seed = (crypto.getRandomValues(new Uint32Array(1))[0]) >>> 0;
-    worker.postMessage({ type: 'random', seed });
-  };
-  btnSolve.onclick = () => {
-    if (!ready || busy) return;
-    const f = view().join('');
-    stopPlay(); showMsg('');
-    if (sol) { cube = f.split(''); sol = null; $('result').hidden = true; }
-    const cnt = {}; cube.forEach(c => cnt[c] = (cnt[c] || 0) + 1);
-    setBusy(true);
-    worker.postMessage({ type: 'solve', facelets: cube.join(''), maxLen: 30, ms: thinkMs });
-  };
-  document.querySelectorAll('.seg-b').forEach(b => b.addEventListener('click', () => {
-    document.querySelectorAll('.seg-b').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
-    b.classList.add('on'); b.setAttribute('aria-checked', 'true'); thinkMs = +b.dataset.ms;
-  }));
-
-  // ---------- Worker ----------
-  let worker;
-  try { worker = new Worker('cube-worker.js?v=1'); } catch (e) { fatal(String(e)); }
-  function fatal(t) {
-    statusEl.textContent = 'Lỗi engine'; statusEl.className = 'status err';
-    showMsg('Không nạp được engine. Hãy mở trang qua http(s), không mở trực tiếp bằng file://. (' + t + ')');
-  }
-  if (worker) {
-    worker.onerror = (e) => fatal(e.message || 'worker');
-    worker.onmessage = (ev) => {
-      const d = ev.data;
-      if (d.type === 'ready') {
-        ready = true; setBusy(false);
-        statusEl.textContent = 'Engine sẵn sàng'; statusEl.className = 'status ok';
-        statusEl.title = 'Dựng bảng tra ' + Math.round(d.initMs) + ' ms';
-      } else if (d.type === 'fatal') { fatal(d.message); }
-      else if (d.type === 'random') { cube = d.facelets.split(''); render(); }
-      else if (d.type === 'solved') {
-        setBusy(false);
-        if (!d.ok) { showMsg(ERR[String(d.err)] || ('Lỗi ' + d.err)); return; }
-        sol = { moves: d.moves, states: d.states, idx: 0, info: 'Tìm trong ' + Math.max(1, Math.round(d.ms)) + ' ms' };
-        render();
-        $('result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    };
-  }
-  setBusy(false); btnSolve.disabled = btnRandom.disabled = btnReset.disabled = true;
-  render();
-  window.__nyra = { get cube() { return cube.join(''); }, get sol() { return sol; } };
-})();
+}
+setBusy(false); btnSolve.disabled = btnScramble.disabled = btnReset.disabled = true;
+window.__nyra = { read: read3d, get busy() { return busy; }, turn: turnMove, resetCube };
